@@ -1,0 +1,27 @@
+{
+  "name": "advanced-stripe-mcp-server",
+  "version": "0.1.0",
+  "description": "Providing an enhanced Stripe experience with features such as multi-account support",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "advanced-stripe-mcp-server": "./build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "prepare": "npm run build",
+    "watch": "tsc --watch",
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.8.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "typescript": "^5.3.3"
+  }
+}
