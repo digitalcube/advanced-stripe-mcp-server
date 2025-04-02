@@ -5,8 +5,8 @@
  * It demonstrates core MCP concepts like resources, tools, and prompts.
  */
 
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/transports";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
 /**
@@ -58,7 +58,7 @@ server.resource(
     
     return {
       contents: [{
-        uri,
+        uri: uri.toString(),
         mimeType: "text/plain",
         text: note.content
       }]
@@ -75,7 +75,7 @@ server.tool(
     title: z.string().min(1, "Title is required"),
     content: z.string().min(1, "Content is required")
   },
-  async ({ title, content }) => {
+  async ({ title, content }: { title: string, content: string }) => {
     const id = String(Object.keys(notes).length + 1);
     notes[id] = { title, content };
     
