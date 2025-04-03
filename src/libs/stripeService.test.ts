@@ -94,29 +94,42 @@ describe('StripeService', () => {
   describe('formatResponse', () => {
     it('should format a single result', () => {
       const results: SearchResult[] = [
-        { accountName: 'test', success: true, message: 'Success message' }
+        { accountName: 'test', success: true, message: 'Success message', data: { id: '123' } }
       ];
 
       const response = stripeService.formatResponse(results);
 
       expect(response.content).toHaveLength(1);
-      expect(response.content[0].text).toContain('[アカウント: test]');
-      expect(response.content[0].text).toContain('Success message');
+      expect(response.content[0].type).toBe('text');
+
+      // JSONをパースして内容を検証
+      const parsed = JSON.parse(response.content[0].text);
+      expect(parsed).toHaveProperty('test');
+      expect(parsed.test.success).toBe(true);
+      expect(parsed.test.message).toBe('Success message');
+      expect(parsed.test.data).toEqual({ id: '123' });
     });
 
     it('should format multiple results', () => {
       const results: SearchResult[] = [
-        { accountName: 'test1', success: true, message: 'Success message 1' },
+        { accountName: 'test1', success: true, message: 'Success message 1', data: { id: '123' } },
         { accountName: 'test2', success: false, message: 'Error message 2' }
       ];
 
       const response = stripeService.formatResponse(results);
 
       expect(response.content).toHaveLength(1);
-      expect(response.content[0].text).toContain('[アカウント: test1]');
-      expect(response.content[0].text).toContain('[アカウント: test2]');
-      expect(response.content[0].text).toContain('Success message 1');
-      expect(response.content[0].text).toContain('Error message 2');
+      
+      // JSONをパースして内容を検証
+      const parsed = JSON.parse(response.content[0].text);
+      expect(parsed).toHaveProperty('test1');
+      expect(parsed).toHaveProperty('test2');
+      expect(parsed.test1.success).toBe(true);
+      expect(parsed.test1.message).toBe('Success message 1');
+      expect(parsed.test1.data).toEqual({ id: '123' });
+      expect(parsed.test2.success).toBe(false);
+      expect(parsed.test2.message).toBe('Error message 2');
+      expect(parsed.test2).not.toHaveProperty('data');
     });
 
     it('should handle empty results', () => {
@@ -125,7 +138,7 @@ describe('StripeService', () => {
       const response = stripeService.formatResponse(results);
 
       expect(response.content).toHaveLength(1);
-      expect(response.content[0].text).toContain('登録されているStripeアカウント');
+      expect(response.content[0].text).toContain('登録されているStripeアカウントが見つかりません');
     });
   });
 }); 
