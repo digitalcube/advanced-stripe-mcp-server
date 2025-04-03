@@ -5,30 +5,14 @@
  * It demonstrates core MCP concepts like resources, tools, and prompts.
  */
 
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { LogLevel, MCPLogger } from "./logger.js";
 import { extractStripeApiKeys } from "./libs/stripeHelpers.js";
 import { StripeService } from "./libs/stripeService.js";
 import { CustomerOperations, SubscriptionOperations, InvoiceOperations } from "./libs/stripeOperations.js";
-
-import {StripeAgentToolkit} from '@stripe/agent-toolkit/langchain';
 import Stripe from 'stripe';
-
-/**
- * Type alias for a note object.
- */
-type Note = { title: string, content: string };
-
-/**
- * Simple in-memory storage for notes.
- * In a real implementation, this would likely be backed by a database.
- */
-const notes: { [id: string]: Note } = {
-  "1": { title: "First Note", content: "This is note 1" },
-  "2": { title: "Second Note", content: "This is note 2" }
-};
 
 /**
  * Create an MCP server
@@ -38,42 +22,6 @@ const server = new McpServer({
   version: "0.1.0",
 });
 
-
-/**
- * Define notes resource
- */
-server.resource(
-  "notes",
-  new ResourceTemplate("note:///{id}", {
-    list: async () => {
-      return {
-        resources: Object.entries(notes).map(([id, note]) => ({
-          uri: `note:///${id}`,
-          mimeType: "text/plain",
-          name: note.title,
-          description: `A text note: ${note.title}`
-        }))
-      };
-    }
-  }),
-  async (uri, params) => {
-    const id = String(params.id);
-    const note = notes[id];
-    
-    if (!note) {
-      throw new Error(`Note ${id} not found`);
-    }
-    
-    return {
-      contents: [{
-        uri: uri.toString(),
-        mimeType: "text/plain",
-        text: note.content
-      }]
-    };
-  }
-);
-
 const logger = new MCPLogger({
   level: LogLevel.INFO,
 });
@@ -81,19 +29,14 @@ const logger = new MCPLogger({
 // Stripeのバージョン
 const STRIPE_API_VERSION: Stripe.StripeConfig['apiVersion'] =  '2025-03-31.basil';
 
-
 server.tool(`search_customer`, {
   name: z.string().min(1, "Name is required"),
   account: z.string().optional().describe("アカウント名（例: 1st_account, 2nd_account）または「all」ですべてのアカウントを検索"),
 }, async (args: { name: string, account?: string }, extra) => {
   const { name, account } = args;
   logger.info(`Searching customer with name: ${name}, account: ${account || 'not specified'}`);
-  // 環境変数からStripe APIキーを抽出
-  const stripeApiKeys = extractStripeApiKeys(process.env);
-  
-  // StripeServiceを初期化
   const stripeService = new StripeService({
-    apiKeys: stripeApiKeys,
+    apiKeys: extractStripeApiKeys(process.env),
     logger: logger,
     apiVersion: STRIPE_API_VERSION
   });
@@ -112,12 +55,8 @@ server.tool(`search_customer_by_email`, {
 }, async (args: { email: string, account?: string }, extra) => {
   const { email, account } = args;
   logger.info(`Searching customer with email: ${email}, account: ${account || 'not specified'}`);
-  // 環境変数からStripe APIキーを抽出
-  const stripeApiKeys = extractStripeApiKeys(process.env);
-  
-  // StripeServiceを初期化
   const stripeService = new StripeService({
-    apiKeys: stripeApiKeys,
+    apiKeys: extractStripeApiKeys(process.env),
     logger: logger,
     apiVersion: STRIPE_API_VERSION
   });
@@ -130,22 +69,27 @@ server.tool(`search_customer_by_email`, {
   return stripeService.formatResponse(results);
 });
 
-server.tool(`search_subscriptions`, {
+server.tool(`search_subscription_by_customer`, {
   customerId: z.string().min(1, "Customer ID is required"),
+  fetchAll: z.boolean().optional().describe("全てのサブスクリプションを取得するかどうか"),
   account: z.string().optional().describe("アカウント名（例: 1st_account, 2nd_account）または「all」ですべてのアカウントを検索"),
-}, async (args: { customerId: string, account?: string }, extra) => {
-  const { customerId, account } = args;
+}, async (args: { customerId: string, account?: string, fetchAll?: boolean }, extra) => {
+  const { customerId, account, fetchAll } = args;
   logger.info(`Searching subscriptions for customer: ${customerId}, account: ${account || 'not specified'}`);
-  // 環境変数からStripe APIキーを抽出
-  const stripeApiKeys = extractStripeApiKeys(process.env);
   
   // StripeServiceを初期化
   const stripeService = new StripeService({
-    apiKeys: stripeApiKeys,
+    apiKeys: extractStripeApiKeys(process.env),
     logger: logger,
     apiVersion: STRIPE_API_VERSION
   });
-  
+  if (fetchAll) {
+    const results = await stripeService.executeOperation(
+      { customer: customerId, account },
+      SubscriptionOperations.searchAll
+    );
+    return stripeService.formatResponse(results);
+  }
   const results = await stripeService.executeOperation(
     { customerId, account },
     SubscriptionOperations.searchByCustomerId
@@ -153,130 +97,148 @@ server.tool(`search_subscriptions`, {
   return stripeService.formatResponse(results);
 });
 
-server.tool(`search_invoices`, {
-  customerId: z.string().optional(),
-  invoiceId: z.string().optional(),
+server.tool('search_subscriptions', {
+  limit: z.number().optional().describe("Number of subscriptions to retrieve (default: 10, max: 100)"),   
+  status: z.enum(['active', 'canceled', 'incomplete', 'incomplete_expired', 'past_due', 'unpaid']).optional().describe("Subscription status"),
+  customer: z.string().optional().describe("Customer ID to filter by"),
+  product: z.string().optional().describe("Product ID to filter by"),
+  created: z.string().optional().describe("Created date in YYYY-MM-DD format"),
+  fetchAll: z.boolean().optional().describe("全てのサブスクリプションを取得するかどうか"),
   account: z.string().optional().describe("アカウント名（例: 1st_account, 2nd_account）または「all」ですべてのアカウントを検索"),
-}, async (args: { customerId?: string, invoiceId?: string,account?: string }, extra) => {
-  const { customerId, account, invoiceId } = args;
-  logger.info(`Searching invoices for customer: ${customerId}, account: ${account || 'not specified'}`);
-  // 環境変数からStripe APIキーを抽出
-  const stripeApiKeys = extractStripeApiKeys(process.env);
+}, async ({ limit, status, customer, product, created, fetchAll, account }) => {
+  // 検索条件の設定
+  const searchParams: Stripe.SubscriptionListParams = {
+      limit: fetchAll ? 100 : Math.min(limit || 10, 100), // 全件取得の場合は100件ずつ、それ以外はlimitまたはデフォルト10件
+      expand: ['data.customer', 'data.items.data.price'],
+  };
+
+  // オプションパラメータの追加
+  if (status) searchParams.status = status;
+  if (customer) searchParams.customer = customer;
+  if (created) {
+      const createdDate = new Date(created);
+      searchParams.created = Math.floor(createdDate.getTime() / 1000);
+  }
+  logger.info(`Searching subscriptions by: ${JSON.stringify(searchParams)}, account: ${account || 'not specified'}`);
   
   // StripeServiceを初期化
   const stripeService = new StripeService({
-    apiKeys: stripeApiKeys,
+    apiKeys: extractStripeApiKeys(process.env),
     logger: logger,
     apiVersion: STRIPE_API_VERSION
   });
-  if (customerId) {
+  if (fetchAll) {
     const results = await stripeService.executeOperation(
-      { customerId, account },
-      InvoiceOperations.searchByCustomerId
+      { ...searchParams, account },
+      SubscriptionOperations.searchAll
     );
     return stripeService.formatResponse(results);
   }
-  if (invoiceId) {
-    const results = await stripeService.executeOperation(
-      { invoiceId, account },
-      InvoiceOperations.searchByInvoiceId
-    );
-    
-    return stripeService.formatResponse(results);
-  }
-  return stripeService.formatResponse([{
-    success: false,
-    message: "customerId または invoiceId が必要です",
-    accountName: account || 'not specified'
-  }])
+  const results = await stripeService.executeOperation(
+    { ...searchParams, account },
+    SubscriptionOperations.search
+  );
+  return stripeService.formatResponse(results);
+});
+
+server.tool('get_invoice_by_id', {
+  invoiceId: z.string().min(1, "Invoice ID is required"),
+  account: z.string().optional().describe("アカウント名（例: 1st_account, 2nd_account）または「all」ですべてのアカウントを検索"),
+}, async ({invoiceId, account}) => {
+
+  // 環境変数からStripe APIキーを抽出
+  const stripeService = new StripeService({
+    apiKeys: extractStripeApiKeys(process.env),
+    logger: logger,
+    apiVersion: STRIPE_API_VERSION
+  });
+  const results = await stripeService.executeOperation(
+    { invoiceId, account },
+    InvoiceOperations.searchByInvoiceId
+  );
   
+  return stripeService.formatResponse(results);
+})
+
+server.tool('list_invoices', {
+  fetchAll: z.boolean().optional().describe("全ての請求書を取得するかどうか"),
+  dueDate: z.string().optional().describe("Due date in YYYY-MM-DD format"),
+  customer: z.string().optional().describe("Customer ID to filter by"),
+  status: z.enum(['draft', 'open', 'paid', 'uncollectible', 'void']).optional().describe("Invoice status"),
+  account: z.string().optional().describe("アカウント名（例: 1st_account, 2nd_account）または「all」ですべてのアカウントを検索"),
+}, async ({ fetchAll, account, dueDate, customer, status }) => {
+  const stripeService = new StripeService({
+    apiKeys: extractStripeApiKeys(process.env),
+    logger: logger,
+    apiVersion: STRIPE_API_VERSION
+  });
+  const results = await stripeService.executeOperation(
+    { fetchAll, account, dueDate, customer, status },
+    InvoiceOperations.list
+  );
+  return stripeService.formatResponse(results);
+})
+
+
+
+server.tool('search_invoice', {
+  email: z.string().optional().describe("Customer email to search for"),
+  status: z.enum(['draft', 'open', 'paid', 'uncollectible', 'void']).optional().describe("Invoice status"),
+  total: z.number().optional().describe("Total amount of the invoice (in minor units)"),
+  subscription: z.string().optional().describe("Subscription ID associated with invoices"),
+  fetchAll: z.boolean().optional().describe("全てのサブスクリプションを取得するかどうか"),
+  number: z.string().optional().describe("Invoice number (e.g. MYSHOP-123)"),
+  account: z.string().optional().describe("アカウント名（例: 1st_account, 2nd_account）または「all」ですべてのアカウントを検索"),
+}, async ({ email, status, total, subscription, account, fetchAll, number }) => {
+  const stripeService = new StripeService({
+    apiKeys: extractStripeApiKeys(process.env),
+    logger: logger,
+    apiVersion: STRIPE_API_VERSION
+  });
+
+  const results = await stripeService.executeOperation(
+    { email, status, total, subscription, number, account, fetchAll },
+    InvoiceOperations.search
+  );
+  return stripeService.formatResponse(results);
+})
+
+server.tool(`search_invoices_by_customer`, {
+  customerId: z.string().min(1, "Customer ID is required"),
+  fetchAll: z.boolean().optional().describe("全ての請求書を取得するかどうか"),
+  account: z.string().optional().describe("アカウント名（例: 1st_account, 2nd_account）または「all」ですべてのアカウントを検索"),
+}, async (args) => {
+  const { customerId, account,  fetchAll } = args;
+  logger.info(`Searching invoices for customer: ${customerId}, account: ${account || 'not specified'}`);
+  // 環境変数からStripe APIキーを抽出
+  const stripeService = new StripeService({
+    apiKeys: extractStripeApiKeys(process.env),
+    logger: logger,
+    apiVersion: STRIPE_API_VERSION
+  });
+
+  if (fetchAll) {
+    const results = await stripeService.executeOperation(
+      { customer: customerId, account, fetchAll },
+      InvoiceOperations.list
+    );
+    return stripeService.formatResponse(results);
+  }
+  const results = await stripeService.executeOperation(
+    { customerId, account, fetchAll },
+    InvoiceOperations.searchByCustomerId
+  );
+  return stripeService.formatResponse(results);
 });
 
 /**
- * Define create_note tool
+ * @todo
+ * - product
+ * - price
+ * - balance transaction
+ * - dispute
  */
-server.tool(
-  "hello_world",
-  {
-    title: z.string().min(1, "Title is required"),
-    content: z.string().min(1, "Content is required")
-  },
-  async ({ title, content }: { title: string, content: string }) => {
 
-    const toolkit = new StripeAgentToolkit({
-      secretKey: 'sk_test_xxx',
-      configuration: {
-        actions: {
-          customers: {
-            read: true,
-          }
-        }
-      }
-    })
-    const tools = toolkit.getTools()
-    tools.forEach(tool => {
-      
-      logger.info(JSON.stringify([
-        tool.method,
-        tool.name,
-        tool.description,
-        tool.schema,
-      ], null, 2))
-    })
-
-
-    const id = String(Object.keys(notes).length + 1);
-    notes[id] = { title, content };
-    
-    return {
-      content: [{
-        type: "text",
-        text: `Created note ${id}: ${title}`
-      }]
-    };
-  }
-);
-
-/**
- * Define summarize_notes prompt
- */
-server.prompt(
-  "summarize_notes",
-  {},
-  async () => {
-    const embeddedNotes = Object.entries(notes).map(([id, note]) => ({
-      type: "resource" as const,
-      resource: {
-        uri: `note:///${id}`,
-        mimeType: "text/plain",
-        text: note.content
-      }
-    }));
-    
-    return {
-      messages: [
-        {
-          role: "user",
-          content: {
-            type: "text",
-            text: "Please summarize the following notes:"
-          }
-        },
-        ...embeddedNotes.map(note => ({
-          role: "user" as const,
-          content: note
-        })),
-        {
-          role: "user",
-          content: {
-            type: "text",
-            text: "Provide a concise summary of all the notes above."
-          }
-        }
-      ]
-    };
-  }
-);
 
 /**
  * Start the server using stdio transport.
