@@ -53,7 +53,12 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 {
   "mcpServers": {
     "advanced-stripe-mcp-server": {
-      "command": "/path/to/advanced-stripe-mcp-server/build/index.js"
+      "command": "/path/to/advanced-stripe-mcp-server/build/index.js",
+      "env": {
+        "STRIPE_1ST_ACCOUNT_APIKEY": "sk_test_xxx",
+        "STRIPE_2ND_ACCOUNT_APIKEY": "sk_test_xxx",
+        "STRIPE_3RD_ACCOUNT_APIKEY": "sk_test_xxx"
+      }
     }
   }
 }
