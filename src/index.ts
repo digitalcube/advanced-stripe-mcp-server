@@ -11,7 +11,9 @@ import { z } from "zod";
 import { LogLevel, MCPLogger } from "./logger.js";
 import { extractStripeApiKeys } from "./libs/stripeHelpers.js";
 import { StripeService } from "./libs/stripeService.js";
-import { CustomerOperations, SubscriptionOperations, InvoiceOperations } from "./libs/stripeOperations.js";
+import { CustomerOperations } from "./operations/customers.js";
+import { SubscriptionOperations } from "./operations/subscriptions.js";
+import { InvoiceOperations } from "./operations/invoices.js";
 import Stripe from 'stripe';
 
 /**
@@ -29,10 +31,10 @@ const logger = new MCPLogger({
 // Stripeのバージョン
 const STRIPE_API_VERSION: Stripe.StripeConfig['apiVersion'] =  '2025-03-31.basil';
 
-server.tool(`search_customer`, {
+server.tool(`search_stripe_customer_by_name`, {
   name: z.string().min(1, "Name is required"),
   account: z.string().optional().describe("アカウント名（例: 1st_account, 2nd_account）または「all」ですべてのアカウントを検索"),
-}, async (args: { name: string, account?: string }, extra) => {
+}, async (args: { name: string, account?: string }) => {
   const { name, account } = args;
   logger.info(`[search_customer] 検索開始: 名前=${name}, アカウント=${account || 'デフォルト'}`);
   const stripeService = new StripeService({
@@ -52,7 +54,7 @@ server.tool(`search_customer`, {
   return stripeService.formatResponse(results);
 });
 
-server.tool(`search_customer_by_email`, {
+server.tool(`search_stripe_customer_by_email`, {
   email: z.string().min(1, "Email is required").email("Invalid email format"),
   account: z.string().optional().describe("アカウント名（例: 1st_account, 2nd_account）または「all」ですべてのアカウントを検索"),
 }, async (args: { email: string, account?: string }, extra) => {
@@ -75,31 +77,7 @@ server.tool(`search_customer_by_email`, {
   return stripeService.formatResponse(results);
 });
 
-server.tool(`search_subscription_by_customer`, {
-  customerId: z.string().min(1, "Customer ID is required"),
-  account: z.string().optional().describe("アカウント名（例: 1st_account, 2nd_account）または「all」ですべてのアカウントを検索"),
-}, async (args: { customerId: string, account?: string }, extra) => {
-  const { customerId, account } = args;
-  logger.info(`[search_subscription_by_customer] 検索開始: カスタマーID=${customerId}, アカウント=${account || 'デフォルト'}`);
-  
-  // StripeServiceを初期化
-  const stripeService = new StripeService({
-    apiKeys: extractStripeApiKeys(process.env),
-    logger: logger,
-    apiVersion: STRIPE_API_VERSION
-  });
-  logger.info(`[search_subscription_by_customer] StripeService初期化完了`);
-
-  logger.info(`[search_subscription_by_customer] 通常検索モードで実行`);
-  const results = await stripeService.executeOperation(
-    { customerId, account },
-    SubscriptionOperations.searchByCustomerId
-  );
-  logger.info(`[search_subscription_by_customer] 通常検索完了: 結果数=${results?.length || 0}, 最初の数件=${JSON.stringify(results?.slice(0, 2) || [])}`);
-  return stripeService.formatResponse(results);
-});
-
-server.tool('search_subscriptions', {
+server.tool('search_stripe_subscriptions', {
   limit: z.number().optional().describe("Number of subscriptions to retrieve (default: 10, max: 100)"),   
   status: z.enum(['active', 'canceled', 'incomplete', 'incomplete_expired', 'past_due', 'unpaid']).optional().describe("Subscription status"),
   customer: z.string().optional().describe("Customer ID to filter by"),
@@ -238,16 +216,6 @@ server.tool('search_stripe_invoices', {
     }
 
 })
-
-
-/**
- * @todo
- * - product
- * - price
- * - balance transaction
- * - dispute
- */
-
 
 /**
  * Start the server using stdio transport.
