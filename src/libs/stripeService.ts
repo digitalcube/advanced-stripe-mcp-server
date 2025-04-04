@@ -4,7 +4,7 @@
  */
 
 import Stripe from 'stripe';
-import { MCPLogger } from '../logger.js';
+import { MCPLogger, logger } from '../logger.js';
 
 // 検索結果の型定義
 export interface SearchResult {
@@ -166,12 +166,14 @@ export class StripeService {
         }]
       };
     }
-
-    return {
+    const recursiveCallTargets = results.filter((result) => {
+      return result.data.has_more
+    });
+   return {
       content: [{
-        type: "text",
-        text: JSON.stringify(
-            results.reduce((acc, result) => {
+        type: "text" as const,
+        text: JSON.stringify({
+            data: results.reduce((acc, result) => {
                 return {
                     ...acc,
                     [result.accountName]: {
@@ -182,9 +184,16 @@ export class StripeService {
                         next_page: result.next_page || undefined,
                     }
                 }
-            }, {} as Record<string, object>)
-        )
-      }]
+            }, {} as Record<string, object>),
+            // has_moreが含まれている。つまりもう一度APIを叩く必要があるケースであることを伝えるパラメータ
+            has_more: recursiveCallTargets.length > 0,
+            // 生成AIへ明示的にもう一度呼び出す必要があることを伝える。
+            notice: recursiveCallTargets.length < 1 ? null : `データが全件必要な場合、次のリソースはnext_pageを指定してもう一度呼び出してください。\n${recursiveCallTargets.map((target) => `- ${target.accountName}: 'next_page' is ${target.data?.next_page}`).join('\n')}`
+        })
+      }].concat(recursiveCallTargets.length < 1 ? [] : [{
+        type: 'text' as const,
+        text: `データが全件必要な場合、次のリソースはnext_pageを指定してもう一度呼び出してください。\n${recursiveCallTargets.map((target) => `- ${target.accountName}: 'next_page' is ${target.data?.next_page}`).join('\n')}`
+      }])
     };
   }
 } 

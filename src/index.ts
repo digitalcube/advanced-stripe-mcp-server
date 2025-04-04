@@ -139,6 +139,7 @@ server.tool('list_stripe_invoices', {
     args,
     InvoiceOperations.list
   );
+  logger.info(`[list_stripe_invoices] results: ${results}`);
   return stripeService.formatResponse(results);
 })
 
