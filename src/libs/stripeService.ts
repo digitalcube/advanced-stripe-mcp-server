@@ -12,6 +12,10 @@ export interface SearchResult {
   success: boolean;
   message: string;
   data?: any;
+  // List / Search APIがまだデータを持っている場合はtrueになる
+  has_more?: boolean;
+  // Search APIのみ。この値を渡して次のページを取得する
+  next_page?: string;
 }
 
 // MCPレスポンスのコンテンツの型定義
@@ -174,6 +178,8 @@ export class StripeService {
                         data: result.data,
                         success: result.success,
                         message: result.message,
+                        has_more: result.has_more || undefined,
+                        next_page: result.next_page || undefined,
                     }
                 }
             }, {} as Record<string, object>)
