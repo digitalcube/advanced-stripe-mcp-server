@@ -28,6 +28,10 @@ advanced-stripe-mcp-serverは、MCPプロトコル（Model Context Protocol）�
 
 ## 利用例（スクリーンショット）
 
+### メールドメインベースでの調査分析
+
+![スクリーンショット 2025-04-04 10 45 04](https://github.com/user-attachments/assets/38ee61bb-b6ab-4890-9841-aab6efb29935)
+
 ### 請求書の検索
 
 ![スクリーンショット 2025-04-04 10 31 52](https://github.com/user-attachments/assets/3bf80be6-03a4-4db6-b2e1-8488dba145da)
