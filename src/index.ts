@@ -52,7 +52,7 @@ server.tool(`search_stripe_customer_by_name`, {
 });
 
 server.tool(`search_stripe_customer_by_email`, {
-  email: z.string().min(1, "Email is required").email("Invalid email format"),
+  email: z.string().min(1, "Email is required"),
   account: z.string().optional().describe("アカウント名（例: 1st_account, 2nd_account）または「all」ですべてのアカウントを検索"),
 }, async (args: { email: string, account?: string }, extra) => {
   const { email, account } = args;
