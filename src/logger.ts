@@ -90,3 +90,6 @@ export class MCPLogger {
     }
   }
 }
+export const logger = new MCPLogger({
+  level: LogLevel.INFO,
+});

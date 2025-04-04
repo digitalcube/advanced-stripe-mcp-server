@@ -8,7 +8,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { LogLevel, MCPLogger } from "./logger.js";
+import { logger } from "./logger.js";
 import { extractStripeApiKeys } from "./libs/stripeHelpers.js";
 import { StripeService } from "./libs/stripeService.js";
 import { CustomerOperations } from "./operations/customers.js";
@@ -23,10 +23,7 @@ const server = new McpServer({
   name: "advanced-stripe-mcp-server",
   version: "0.1.0",
 });
-
-const logger = new MCPLogger({
-  level: LogLevel.INFO,
-});
+  
 
 // Stripeのバージョン
 const STRIPE_API_VERSION: Stripe.StripeConfig['apiVersion'] =  '2025-03-31.basil';

@@ -1,53 +1,80 @@
-# advanced-stripe-mcp-server MCP Server
 
-Providing an enhanced Stripe experience with features such as multi-account support
+# 日本語ドキュメント: advanced-stripe-mcp-server について
 
-This is a TypeScript-based MCP server that implements a simple notes system. It demonstrates core MCP concepts by providing:
+## このプロジェクトについて
 
-- Resources representing text notes with URIs and metadata
-- Tools for creating new notes
-- Prompts for generating summaries of notes
+advanced-stripe-mcp-serverは、MCPプロトコル（Model Context Protocol）を活用して、複数のStripeアカウントを横断的に管理・操作することを可能にするサーバーです。このサーバーをClaudeなどのAIアシスタントと連携させることで、自然言語を使ってStripeアカウントのデータを検索・操作することができるようになります。
 
-## Features
+## 主な機能
 
-### Resources
-- List and access notes via `note://` URIs
-- Each note has a title, content and metadata
-- Plain text mime type for simple content access
+### 複数Stripeアカウントの統合管理
+- 複数のStripeアカウントを一元管理
+- すべてのアカウントを横断して検索・操作が可能
+- 特定のアカウントに限定した操作も簡単に実行可能
 
-### Tools
-- `create_note` - Create new text notes
-  - Takes title and content as required parameters
-  - Stores note in server state
+### 顧客（Customer）関連機能
+- 名前による顧客検索（`search_stripe_customer_by_name`）
+- メールアドレスによる顧客検索（`search_stripe_customer_by_email`）
 
-### Prompts
-- `summarize_notes` - Generate a summary of all stored notes
-  - Includes all note contents as embedded resources
-  - Returns structured prompt for LLM summarization
+### サブスクリプション関連機能
+- 顧客ID、ステータス、商品IDなどによるサブスクリプション検索（`search_stripe_subscriptions`）
 
-## Development
+### 請求書（Invoice）関連機能
+- 請求書リスト取得（`list_stripe_invoices`）
+- 請求書ID指定による詳細情報取得（`get_stripe_invoice_by_id`）
+- 顧客、ステータス、金額、サブスクリプションIDなどによる請求書検索（`search_stripe_invoices`）
 
-Install dependencies:
+## このMCPサーバーで解決できる業務課題
+
+1. **複数アカウント管理の効率化**:
+   - 異なるStripeアカウントのデータを切り替えずに一度に検索・閲覧可能
+   - アカウントをまたいだデータの比較や分析が容易に
+
+2. **顧客サポート業務の効率化**:
+   - 顧客からの問い合わせに対して、名前やメールアドレスから素早く顧客情報を検索
+   - サブスクリプション状況や請求書履歴を迅速に確認
+
+3. **経理・財務管理の支援**:
+   - 請求書ステータスや金額による検索で未払い請求書の確認が容易に
+   - 複数アカウントの請求状況を一元的に把握
+
+4. **AI連携による業務自動化**:
+   - 「先月の未払い請求書をすべて表示して」などの自然言語での操作
+   - データ分析や傾向把握をAIに依頼可能
+
+## 使い方
+
+### 1. セットアップ
+
+#### 必要条件
+- Node.js (v18以上)
+- npm (v8以上)
+- Stripe APIキー（複数アカウント分）
+
+#### インストール手順
+
+1. リポジトリをクローン:
+```bash
+git clone https://github.com/yourusername/advanced-stripe-mcp-server.git
+cd advanced-stripe-mcp-server
+```
+
+2. 依存パッケージのインストール:
 ```bash
 npm install
 ```
 
-Build the server:
+3. サーバーのビルド:
 ```bash
 npm run build
 ```
 
-For development with auto-rebuild:
-```bash
-npm run watch
-```
+### 2. 設定
 
-## Installation
+Claude DesktopでMCPサーバーを使用するには、以下の設定ファイルを編集します:
 
-To use with Claude Desktop, add the server config:
-
-On MacOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
+- macOSの場合: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windowsの場合: `%APPDATA%/Claude/claude_desktop_config.json`
 
 ```json
 {
@@ -55,21 +82,69 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
     "advanced-stripe-mcp-server": {
       "command": "/path/to/advanced-stripe-mcp-server/build/index.js",
       "env": {
-        "STRIPE_1ST_ACCOUNT_APIKEY": "sk_test_xxx",
-        "STRIPE_2ND_ACCOUNT_APIKEY": "sk_test_xxx",
-        "STRIPE_3RD_ACCOUNT_APIKEY": "sk_test_xxx"
+        "STRIPE_AMIMOTO_ACCOUNT_APIKEY": "Amimotoの制限つきAPIキー",
+        "STRIPE_SHIFTER_ACCOUNT_APIKEY": "Shifterの制限つきAPIキー",
+        "STRIPE_FINANSCOPE_ACCOUNT_APIKEY": "FinanScopeの制限つきAPIキー"
       }
     }
   }
 }
 ```
 
-### Debugging
+#### 2.1. コマンドのパスを取得する方法
 
-Since MCP servers communicate over stdio, debugging can be challenging. We recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector), which is available as a package script:
+`command`のパスは、`npm run build`を実行した場所（ディレクトリ）で、以下のコマンドを実行します。
+
+```bash
+echo "\"$(pwd)/build/index.js\""
+```
+
+これで`command`に記述すべきパスが表示されます。
+例: `"/Users/dc-okamotohidetaka/development/mcp-servers/advanced-stripe-mcp-server/build/index.js"`
+
+macOSの場合、`echo "\"$(pwd)/build/index.js\"" | pbcopy`でコピーまでできます。
+
+#### 2.2. Stripe APIキーの生成方法
+
+セキュリティリスク、インシデント発生リスク削減のため、「シークレットキー」の利用は禁止しています。
+`sk_`から始まるAPIキーを設定すると、エラーが出ますのでご了承ください。
+
+制限つきAPIキーは、ユーザーごとに発行してください。AWSと一緒です。
+作り方は、[Stripe のドキュメント](https://docs.stripe.com/keys?locale=ja-JP#create-restricted-api-secret-key)を参考にしましょう。
+権限は、「読み込み」の権限を全部につけておけばOKです。不安な方は @hidetaka まで。
+
+### 3. 使用例
+
+Claude Desktopにて、以下のような自然言語クエリが可能になります:
+
+- 「顧客の田中さんの最近の請求書を検索して」
+- 「先月の未払いの請求書をすべて表示して」
+- 「example@email.comに関連するサブスクリプションの状態を教えて」
+- 「1st_accountとall_accountの両方で、最近キャンセルされたサブスクリプションを比較して」
+
+### 4. デバッグ
+
+MCPサーバーのデバッグには、MCP Inspectorを使用できます:
 
 ```bash
 npm run inspector
 ```
 
-The Inspector will provide a URL to access debugging tools in your browser.
+これにより、ブラウザでデバッグツールにアクセスするためのURLが表示されます。
+
+## 開発者向け情報
+
+### ディレクトリ構造
+- `src/index.ts`: メインサーバーファイル（ツール定義など）
+- `src/libs/`: Stripe操作の基本クラスや共通関数
+- `src/operations/`: 各種Stripe操作（顧客、サブスクリプション、請求書など）
+
+### 追加機能の開発
+新しいStripe API機能を追加する場合は、以下の手順に従ってください:
+
+1. `src/operations/`に新しい操作を定義
+2. `src/index.ts`に新しいツールとして登録
+3. テストを作成して機能を検証
+
+### 環境変数
+- `STRIPE_*_ACCOUNT_APIKEY`: 各Stripeアカウントのシークレットキー

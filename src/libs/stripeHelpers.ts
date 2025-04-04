@@ -1,3 +1,5 @@
+import { logger } from "../logger.js";
+
 /**
  * 環境変数からStripeのAPIキーを抽出する関数
  * 
@@ -21,7 +23,10 @@ export function extractStripeApiKeys(env: Record<string, string | undefined>): R
     .filter(([key, value]) => key.startsWith('STRIPE_') && key.includes('_ACCOUNT_') && key.endsWith('_APIKEY'))
     .filter(([_, value]) => {
         if (!value) return false;
-        if (value.startsWith('sk_')) return true;
+        if (value.startsWith('sk_')) {
+          logger.error(`[extractStripeApiKeys] sk_から始まるAPIキーは使用できません。rk_から始まる制限つきAPIキーを使用してください。`);
+          throw new Error('sk_から始まるAPIキーは使用できません。rk_から始まる制限つきAPIキーを使用してください。');
+        }
         return value.startsWith('rk_');
     })
     .reduce((acc, [key, value]) => {
